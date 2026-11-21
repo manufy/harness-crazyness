@@ -91,18 +91,15 @@ func loadRequest(path, text string) (protocol.Request, error) {
 
 func pluginCommand(arguments []string) (string, []string) {
 	for i, argument := range arguments {
-		if argument == "--" {
-			if i+1 < len(arguments) {
-				return arguments[i+1], arguments[i+2:]
-			}
-			break
+		if argument == "--" && i+1 < len(arguments) {
+			return arguments[i+1], arguments[i+2:]
 		}
 	}
 	python := os.Getenv("PYTHON")
 	if python == "" {
 		python = "python3"
 	}
-	return python, []string{"plugins/ollama/main.py"}
+	return python, []string{"plugins/mock/main.py"}
 }
 
 func fatal(err error) {

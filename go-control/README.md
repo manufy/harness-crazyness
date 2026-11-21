@@ -1,57 +1,37 @@
 # go-control — harness experimental Go + Python
 
-Andamiaje mínimo para un host en Go que ejecuta plugins como procesos independientes. El contrato JSONL versionado desacopla el host de los plugins; el primer plugin Python compatible es [OpenRouter](https://openrouter.ai/), que puede usar modelos gratuitos sin alojar Ollama.
+Host Go pequeño que ejecuta plugins como procesos independientes. El contrato JSON versionado admite mensajes con partes textuales y multimodales; se pueden añadir proveedores sin acoplarlos al host.
 
-## Prueba remota gratis desde GitHub Mobile
+## Probar gratis desde GitHub Mobile, sin API key
 
-1. Añade una clave de OpenRouter como **Actions secret** de nombre `OPENROUTER_API_KEY`:
-   - Abre el repositorio en GitHub → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
-   - En iOS, también puedes abrir el repositorio en el navegador y usar esa configuración.
-2. Abre **Actions** → **go-control OpenRouter smoke test** → **Run workflow**.
-3. Elige la rama `dev`, escribe el texto opcional y pulsa **Run workflow**.
-4. Abre la ejecución y revisa el paso **Ejecutar el harness con OpenRouter**.
+El workflow manual ofrece el proveedor **mock**, que no llama a un LLM, no necesita claves y devuelve una respuesta simulada. Sirve para comprobar que el runner remoto, Go, Python, el contrato y el plugin funcionan. En GitHub iOS abre **Actions → go-control remote harness test → Run workflow**, selecciona `dev`, `mock` y escribe un prompt.
 
-El workflow usa `OPENROUTER_MODEL=openrouter/free`. OpenRouter seleccionará una variante gratuita disponible. La selección puede cambiar y algunos modelos gratuitos tienen límites o disponibilidad temporal. También puedes fijar otro modelo gratuito cambiando esa variable en el workflow.
+El workflow está en `.github/workflows/go-control.yml`, la ubicación que GitHub Actions detecta.
 
-## Ejecutar desde un terminal local
+## Usar un modelo real
+
+Selecciona `openrouter` en el workflow y configura el Actions secret `OPENROUTER_API_KEY`. Usa `openrouter/free` o un ID de modelo terminado en `:free`; la disponibilidad y los límites los decide OpenRouter y pueden variar. El plugin conserva el soporte de imágenes cuando el modelo elegido las admite.
+
+Para cualquier proveedor compatible con la API OpenAI Chat Completions, configura la Actions variable `LLM_BASE_URL` (URL base hasta `/v1`, por ejemplo la URL documentada por el proveedor) y el Actions secret `LLM_API_KEY`; selecciona `openai-compatible` y especifica `LLM_MODEL`. Comprueba los precios del proveedor: el workflow no puede garantizar que un modelo arbitrario sea gratuito.
+
+**Seguridad:** nunca pongas claves en archivos, prompts o logs; usa Actions secrets. La prueba `mock` es la única que garantiza no hacer solicitudes externas ni usar una API key.
+
+## Ejecutar localmente
 
 ```sh
 cd go-control
+go run ./cmd/harness --text "Hola" -- python3 plugins/mock/main.py
+```
+
+OpenRouter:
+
+```sh
 export OPENROUTER_API_KEY="tu-clave"
 go run ./cmd/harness -- python3 plugins/openrouter/main.py
 ```
 
-Para texto personalizado:
+## Multimodalidad y extensión
 
-```sh
-printf '{"protocol_version":"1","id":"hello-1","messages":[{"role":"user","content":[{"type":"text","text":"Hola"}]}]}\n' |
-  python3 plugins/openrouter/main.py
-```
+El protocolo transporta partes `text`, `image`, `audio` o `video` (binario como base64 en `data`). Los plugins concretan qué modalidades acepta cada proveedor/modelo. Los plugins OpenRouter y OpenAI-compatible traducen texto e imágenes al formato de chat compatible; audio y vídeo requieren adaptadores/modelos que los admitan. El plugin simulado prueba la ruta del protocolo, no interpreta medios.
 
-## Contrato multimodal
-
-Las peticiones y respuestas son objetos JSON con `protocol_version`, `id` y mensajes compuestos por partes `text`, `image`, `audio` o `video`. Los datos binarios se transportan como base64 en `data`. El plugin OpenRouter convierte imágenes base64 al formato `data:<mime>;base64,...` admitido por modelos con visión.
-
-Ejemplo:
-
-```json
-{
-  "protocol_version": "1",
-  "id": "vision-1",
-  "messages": [{
-    "role": "user",
-    "content": [
-      {"type": "text", "text": "¿Qué aparece en esta imagen?"},
-      {"type": "image", "mime_type": "image/jpeg", "data": "<BASE64>"}
-    ]
-  }]
-}
-```
-
-Audio y vídeo requieren un plugin o modelo compatible y pueden no estar disponibles entre los modelos gratuitos.
-
-## Diseño
-
-- **Host Go:** timeout, validación de versión e ID y ejecución del plugin como proceso independiente.
-- **Plugins:** proceso con entrada/salida JSON en una sola línea; stdout reservado al protocolo y stderr a logs.
-- **Plugin inicial:** Python para OpenRouter sin dependencias externas.
+Añadir proveedores significa añadir un plugin que traduzca el contrato común, sin cambiar el host Go. Se incluyen OpenRouter, cualquier proveedor compatible con la API OpenAI Chat Completions y `mock` para pruebas offline.

@@ -1,0 +1,82 @@
+name: go-control remote harness test
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: "Proveedor a probar (mock no requiere claves)"
+        required: true
+        type: choice
+        options:
+          - mock
+          - openrouter
+          - openai-compatible
+        default: mock
+      prompt:
+        description: "Mensaje de prueba"
+        required: true
+        default: "Hola"
+      model:
+        description: "Modelo (OpenRouter: usa openrouter/free para mantener la ruta gratuita)"
+        required: false
+        default: "openrouter/free"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Select provider and run harness
+        working-directory: go-control
+        env:
+          PROVIDER: ${{ inputs.provider }}
+          PROMPT: ${{ inputs.prompt }}
+          MODEL: ${{ inputs.model }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$PROVIDER" in
+            mock)
+              plugin="plugins/mock/main.py"
+              ;;
+            openrouter)
+              if [[ -z "$OPENROUTER_API_KEY" ]]; then
+                echo "Falta el Actions secret OPENROUTER_API_KEY. El proveedor mock funciona sin clave."
+                exit 1
+              fi
+              if [[ "$MODEL" != "openrouter/free" && "$MODEL" != *":free" ]]; then
+                echo "Para esta prueba gratuita usa openrouter/free o un modelo con sufijo :free."
+                exit 1
+              fi
+              export OPENROUTER_MODEL="$MODEL"
+              plugin="plugins/openrouter/main.py"
+              ;;
+            openai-compatible)
+              if [[ -z "$LLM_BASE_URL" || -z "$LLM_API_KEY" ]]; then
+                echo "Configura Actions variable LLM_BASE_URL y secret LLM_API_KEY; verifica que el modelo sea gratuito."
+                exit 1
+              fi
+              export LLM_MODEL="$MODEL"
+              plugin="plugins/openai-compatible/main.py"
+              ;;
+            *) echo "Proveedor desconocido"; exit 1 ;;
+          esac
+          go run ./cmd/harness --text "$PROMPT" -- python3 "$plugin"
