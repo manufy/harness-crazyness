@@ -7,7 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -24,11 +23,11 @@ func logLine(level, color, message string) {
 	fmt.Fprintf(os.Stderr, "\033[%sm[%s] [%s] %-7s %s — %s\033[0m\n", color, timestamp, elapsed, level, message, strings.TrimSpace(message))
 }
 
-func logInfo(message string)   { logLine("INFO", "36", message) }
-func logLoad(message string)   { logLine("LOAD", "35", message) }
-func logRun(message string)    { logLine("RUN", "34", message) }
+func logInfo(message string)    { logLine("INFO", "36", message) }
+func logLoad(message string)    { logLine("LOAD", "35", message) }
+func logRun(message string)     { logLine("RUN", "34", message) }
 func logSuccess(message string) { logLine("OK", "32", message) }
-func logError(message string)  { logLine("ERROR", "31", message) }
+func logError(message string)   { logLine("ERROR", "31", message) }
 
 func main() {
 	logInfo("Inicio del harness")
@@ -138,7 +137,7 @@ func loadRequest(path, text string) (protocol.Request, error) {
 	}
 	return protocol.Request{
 		ProtocolVersion: "1",
-		ID:              "hello-1",
+		ID:             "hello-1",
 		Messages: []protocol.Message{{
 			Role:    "user",
 			Content: []protocol.ContentPart{{Type: "text", Text: text}},
@@ -149,7 +148,7 @@ func loadRequest(path, text string) (protocol.Request, error) {
 func pluginCommand(arguments []string) (string, []string) {
 	for i, argument := range arguments {
 		if argument == "--" && i+1 < len(arguments) {
-			return arguments[i+1], arguments[i+2:] 
+			return arguments[i+1], arguments[i+2:]
 		}
 	}
 	python := os.Getenv("PYTHON")
@@ -167,4 +166,3 @@ func fatal(err error) {
 	logError(fmt.Sprintf("Ejecución fallida — duración total=%s", time.Since(startedAt).Round(time.Millisecond)))
 	os.Exit(1)
 }
-
